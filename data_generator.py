@@ -20,9 +20,9 @@ class DataGenerator:
 
 
     def generate(self):
-        def get_patches(path):
-            img = cv2.imread(path)[...,::-1].astype(np.float32)
-            img = self._preprocess(img)
+        def get_patches(image_path):
+            img = cv2.imread(image_path)[...,::-1].astype(np.float32)
+            img = self._local_contrast_normalization(img)
             patches = self._select_patches(self._extract_patches(img))
             return [np.expand_dims(patch, axis=0) for patch in patches]
 
@@ -44,7 +44,7 @@ class DataGenerator:
 
             # the siamese architecture uses only the batch, not the second (y) value, thus setting to np.ones
             yield [np.array(greater_dmos_batch), np.array(lower_dmos_batch)], np.ones((self.batch_size, 1, 1))
-                
+
 
     def _load_live2_db(self):
         distortion_types = ['fastfading', 'gblur', 'jp2k', 'jpeg', 'wn']
@@ -61,8 +61,21 @@ class DataGenerator:
         shuffle(self.images)
 
 
-    def _preprocess(self, image):
-        return image
+    def _local_contrast_normalization(self, img):
+        k = l = 3  # normalization kernel size
+
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        float_gray = gray.astype(np.float32) / 255.0
+
+        blur = cv2.GaussianBlur(float_gray, (k, l), sigmaX=2, sigmaY=2)
+        num = float_gray - blur
+
+        blur = cv2.GaussianBlur(num*num, (k, l), sigmaX=20, sigmaY=20)
+        den = cv2.pow(blur, 0.5)
+
+        gray = num / den
+
+        return cv2.normalize(gray, dst=gray, alpha=0.0, beta=1.0, norm_type=cv2.NORM_MINMAX) * 255
 
 
     def _extract_patches(self, image):
