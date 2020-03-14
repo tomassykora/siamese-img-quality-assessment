@@ -15,24 +15,25 @@ class SiameseCNN:
         # cnn_model = InceptionV3(weights='imagenet', include_top=False)
         # cnn_model.trainable = False
 
+        # CNN layers as described in the original paper
         cnn_model = Sequential()
-        cnn_model = Conv2D(16, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu', input_shape=self.input_shape)(cnn_model)
-        cnn_model = Conv2D(16, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu', input_shape=self.input_shape)(cnn_model)
-        cnn_model = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(cnn_model)
-        cnn_model = Conv2D(16, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu', input_shape=self.input_shape)(cnn_model)
-        cnn_model = Conv2D(16, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu', input_shape=self.input_shape)(cnn_model)
-        cnn_model = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(cnn_model)
-        cnn_model = Conv2D(16, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu', input_shape=self.input_shape)(cnn_model)
-        cnn_model = Conv2D(16, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu', input_shape=self.input_shape)(cnn_model)
-        cnn_model = Conv2D(16, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu', input_shape=self.input_shape)(cnn_model)
-        cnn_model = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(cnn_model)
-        cnn_model = Conv2D(16, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu', input_shape=self.input_shape)(cnn_model)
-        cnn_model = Conv2D(16, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu', input_shape=self.input_shape)(cnn_model)
-        cnn_model = Conv2D(16, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu', input_shape=self.input_shape)(cnn_model)
-        cnn_model = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(cnn_model)
-        cnn_model = Conv2D(16, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu', input_shape=self.input_shape)(cnn_model)
-        cnn_model = Conv2D(16, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu', input_shape=self.input_shape)(cnn_model)
-        cnn_model = Conv2D(16, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu', input_shape=self.input_shape)(cnn_model)
+        cnn_model = self._cnn_layer(cnn_model)
+        cnn_model = self._cnn_layer(cnn_model)
+        cnn_model = self._max_pool_layer(cnn_model)
+        cnn_model = self._cnn_layer(cnn_model)
+        cnn_model = self._cnn_layer(cnn_model)
+        cnn_model = self._max_pool_layer(cnn_model)
+        cnn_model = self._cnn_layer(cnn_model)
+        cnn_model = self._cnn_layer(cnn_model)
+        cnn_model = self._cnn_layer(cnn_model)
+        cnn_model = self._max_pool_layer(cnn_model)
+        cnn_model = self._cnn_layer(cnn_model)
+        cnn_model = self._cnn_layer(cnn_model)
+        cnn_model = self._cnn_layer(cnn_model)
+        cnn_model = self._max_pool_layer(cnn_model)
+        cnn_model = self._cnn_layer(cnn_model)
+        cnn_model = self._cnn_layer(cnn_model)
+        cnn_model = self._cnn_layer(cnn_model)
 
         x = Flatten(name='flatten')(cnn_model)
         x = Dense(512, activation='relu', name='fc1')(x)
@@ -62,33 +63,48 @@ class SiameseCNN:
             metrics=[self._accuracy]
         )
 
+
     def train(self):
         # TODO: fill parameters
         self.model.fit()
 
-    def _l2_norm(x):
+
+    def _l2_norm(self, x):
         return K.l2_normalize(x, axis=-1)
 
-    def _contrastive_loss(positive_pair, y_pred):
-        max_IQA = 10.0  # TODO: find out what the actual max IQA value is
+
+    def _contrastive_loss(self, positive_pair, y_pred):
+        max_IQA = 100.0
         if positive_pair:
             return (2 / max_IQA) * y_pred**2
         else:
             return 2 * max_IQA * K.exp(-(2.77 * y_pred) / max_IQA)
     
-    def _euclidean_distance(vects):
+
+    def _euclidean_distance(self, vects):
         x, y = vects
         sum_square = K.sum(K.square(x - y), axis=1, keepdims=True)
         return K.sqrt(K.maximum(sum_square, K.epsilon()))
 
-    def _eucl_dist_output_shape(shapes):
+
+    def _eucl_dist_output_shape(self, shapes):
         shape1, shape2 = shapes
         return (shape1[0], 1)
-    
-    # def _accuracy(y_true, y_pred):
+
+
+    # def _accuracy(self, y_true, y_pred):
     #     '''Compute classification accuracy with a fixed threshold on distances.
     #     '''
     #     return K.mean(K.equal(y_true, K.cast(y_pred < 0.5, y_true.dtype)))
 
-    def _accuracy(_, y_pred):
+
+    def _accuracy(self, _, y_pred):
         return K.mean(y_pred[:,0,0] < y_pred[:,1,0])
+
+
+    def _cnn_layer(self, model):
+        return Conv2D(16, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu', input_shape=self.input_shape)(model)
+
+
+    def _max_pool_layer(self, model):
+        return MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(model)
