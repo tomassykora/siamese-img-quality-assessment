@@ -49,6 +49,10 @@ class DataGenerator:
                 greater_dmos_batch += get_patches(greater_dmos_img['path'])
                 lower_dmos_batch   += get_patches(lower_dmos_img['path'])
 
+            zipped_batches = list(zip(greater_dmos_batch, lower_dmos_batch))
+            shuffle(zipped_batches)
+            greater_dmos_batch, lower_dmos_batch = zip(*zipped_batches)
+
             greater_dmos_batch = np.moveaxis(np.array(greater_dmos_batch), 1, 3)
             lower_dmos_batch = np.moveaxis(np.array(lower_dmos_batch), 1, 3)    
 
