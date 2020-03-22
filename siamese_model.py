@@ -1,17 +1,23 @@
 import os
 from math import ceil
+import numpy as np
 
-from keras.layers import Flatten, Dense, Input, Lambda, Conv2D, MaxPooling2D, Dropout
+from keras.layers import Flatten, Dense, Input, Concatenate
+from keras.layers import Lambda, Conv2D, MaxPooling2D, Dropout
 from keras.models import Model, Sequential
 from keras import backend as K
 from keras.optimizers import Adam
 
+from utils import get_preprocessed_patches
+
 
 class SiameseCNN:
 
-    def __init__(self, batch_size):
+    def __init__(self, batch_size, data_generator, orig_arch=True):
         self.batch_size = batch_size
         self.input_shape = (64, 64, 1)
+        self.data_generator = data_generator
+        self.orig_arch = orig_arch
 
         input = Input(shape=self.input_shape, name='image_input')
 
@@ -34,43 +40,84 @@ class SiameseCNN:
         cnn_model.add(self._cnn_layer())
         cnn_model.add(self._cnn_layer())
         cnn_model.add(self._cnn_layer())
-
         cnn_model.add(Flatten(name='flatten'))
-        cnn_model.add(Dense(512, activation='relu', name='fc1'))
-        cnn_model.add(Dropout(0.5))
-        cnn_model.add(Dense(512, name='embeded'))
-        cnn_model.add(Lambda(self._l2_norm, output_shape=[512]))
+        
 
-        self.base_network = cnn_model
-        self.base_network.summary()
+        if self.orig_arch:
+            self.base_network = cnn_model
+            self.base_network.summary()
 
-        input_a = Input(shape=self.input_shape)
-        input_b = Input(shape=self.input_shape)
+            input_a = Input(shape=self.input_shape)
+            input_b = Input(shape=self.input_shape)
 
-        processed_a = self.base_network(input_a)
-        processed_b = self.base_network(input_b)
+            out = Concatenate()([
+                self.base_network(input_a),
+                self.base_network(input_b)
+            ])
 
-        distance = Lambda(
-            self._euclidean_distance,
-            output_shape=self._eucl_dist_output_shape
-        )([processed_a, processed_b])
+            # distance = Lambda(
+            #     self._euclidean_distance,
+            #     output_shape=self._eucl_dist_output_shape
+            # )([processed_a, processed_b])
 
-        self.model = Model([input_a, input_b], distance)
+            out = Dense(512, activation='relu', name='fc1')(out)
+            out = Dropout(0.5)(out)
+            out = Dense(512, activation='relu', name='fc2')(out)
+            out = Dropout(0.5)(out)
+            out = Dense(2, activation='relu', name='fc3')(out)
+            out = Dense(2, activation='softmax', name='fc4')(out)
+
+            self.model = Model([input_a, input_b], out)
+        else:
+            cnn_model.add(Dense(512, activation='relu', name='fc1'))
+            cnn_model.add(Dropout(0.5))
+            cnn_model.add(Dense(512, name='embeded'))
+            cnn_model.add(Lambda(self._l2_norm, output_shape=[512]))
+
+            self.base_network = cnn_model
+            self.base_network.summary()
+
+            input_a = Input(shape=self.input_shape)
+            input_b = Input(shape=self.input_shape)
+
+            processed_a = self.base_network(input_a)
+            processed_b = self.base_network(input_b)
+
+            distance = Lambda(
+                self._euclidean_distance,
+                output_shape=self._eucl_dist_output_shape
+            )([processed_a, processed_b])
+
+            self.model = Model([input_a, input_b], distance)
+
         self.model.summary()
 
 
     def train(self, data_generator):
+        # self.model.compile(
+        #     optimizer=Adam(lr=0.0004),
+        #     loss=self._contrastive_loss, 
+        #     metrics=[self._accuracy]
+        # )
         self.model.compile(
             optimizer=Adam(lr=0.0004),
-            loss=self._contrastive_loss, 
-            metrics=[self._accuracy]
+            loss='categorical_crossentropy',
+            metrics=['accuracy']
         )
 
         self.model.fit_generator(
-            generator=data_generator.generate(),
-            steps_per_epoch = ceil(70000 / self.batch_size),
-            epochs=1
+            generator=self.data_generator.generate(),
+            steps_per_epoch = ceil(700000 / self.batch_size),
+            epochs=2
         )
+
+        # serialize model to JSON
+        model_json = self.model.to_json()
+        with open('model.json', 'w') as json_file:
+            json_file.write(model_json)
+
+        # serialize weights to HDF5
+        self.model.save('model.h5')
 
 
     def _l2_norm(self, x):
@@ -83,7 +130,9 @@ class SiameseCNN:
         #     return (2 / max_IQA) * y_pred**2
         # else:
         #     return 2 * max_IQA * K.exp(-(2.77 * y_pred) / max_IQA)
-        return (2 / max_IQA) * y_pred**2
+
+        return (1.0 - positive_pair) * (2 * max_IQA * K.exp(-(2.77 * y_pred) / max_IQA)) + positive_pair * ((2 / max_IQA) * y_pred**2)
+        # return (2 / max_IQA) * y_pred**2
 
 
     def _euclidean_distance(self, vects):
@@ -99,7 +148,6 @@ class SiameseCNN:
 
     def _accuracy(self, y_true, y_pred):
         return K.mean(K.equal(y_true, K.cast(y_pred < 0.5, 'float32')))
-        # return K.mean(K.equal(y_true, float(y_pred < 0.5)))
 
 
     def _cnn_layer(self):

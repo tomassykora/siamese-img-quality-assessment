@@ -10,12 +10,11 @@ from data_generator import DataGenerator
 def main():
     batch_size = 128
 
-    model = SiameseCNN(batch_size)
     data_generator = DataGenerator(
         batch_size=batch_size,
         dataset_path='/Users/tomassykora/Projects/school/siamese-img-quality-assessment/live2'
     )
-
+    model = SiameseCNN(batch_size, data_generator)
     model.train(data_generator)
 
 
