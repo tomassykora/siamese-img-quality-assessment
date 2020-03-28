@@ -1,33 +1,37 @@
+from os import path
 import numpy as np
 from keras import backend as K
+
+from scipy.stats import spearmanr
 
 from utils import get_preprocessed_patches
 
 
 class IQAEstimator:
 
-    def __init__(self, model, num_patches_for_image=8):
+    def __init__(self, model, test_images, num_patches_for_image=8):
+        self.tid2013_images = []
         self.num_patches_for_image = num_patches_for_image
-        self.test_images = [
-            {'path': 'tid2013/tid2013/distorted_images/i02_23_1.bmp', 'iqa_val': 6.77778, 'patches': []},
-            {'path': 'tid2013/tid2013/distorted_images/I01_01_1.bmp', 'iqa_val': 5.51429, 'patches': []},
-            {'path': 'tid2013/tid2013/distorted_images/i01_17_3.bmp', 'iqa_val': 4.08108, 'patches': []},
-            {'path': 'tid2013/tid2013/distorted_images/i01_08_4.bmp', 'iqa_val': 3.00000, 'patches': []},
-            {'path': 'tid2013/tid2013/distorted_images/i01_10_5.bmp', 'iqa_val': 2.08108, 'patches': []},
-            {'path': 'tid2013/tid2013/distorted_images/i17_11_5.bmp', 'iqa_val': 1.02500, 'patches': []},
-            {'path': 'tid2013/tid2013/distorted_images/i09_24_5.bmp', 'iqa_val': 0.24242, 'patches': []}
-        ]
+        self.test_images = test_images
         self.model = model
         self._prepare_test_patches()
 
 
-    def evaluate_image(self, img_path):
-        patches = get_preprocessed_patches(img_path, self.num_patches_for_image)
-        results = []
+    def full_test_set_eval(self):
         for test_img in self.test_images:
-            results.append(self._compare_image_patches(patches, test_img['patches']))
+            test_img['estimated_iqa'] = 0
+            for img_to_compare in self.test_images:
+                test_img['estimated_iqa'] += self._compare_image_patches(
+                    test_img['patches'],
+                    img_to_compare['patches']
+                )
+        
+        rho, p_val = spearmanr(
+            [img['iqa'] for img in self.test_images],
+            [img['estimated_iqa'] for img in self.test_images]
+        )
 
-        print(results)
+        print(f'Spearman rank-order correlation coefficients are: rho {rho}, p-val: {p_val}')
 
 
     def _prepare_test_patches(self):
@@ -41,14 +45,16 @@ class IQAEstimator:
             for p_test in test_patches:
                 patches_batch.append(p)
                 test_patches_batch.append(p_test)
-        
+
         patches_batch = np.moveaxis(np.array(patches_batch), 1, 3)
         test_patches_batch = np.moveaxis(np.array(test_patches_batch), 1, 3)
 
         pred = self.model.predict([patches_batch, test_patches_batch])
 
-        # Make average over all imae patches
-        higher_iqa = sum([p[0] for p in pred]) / len(pred)
-        lower_iqa = sum([p[1] for p in pred]) / len(pred)
+        # Make average over all image patches
+        # higher_iqa = sum([p[0] for p in pred]) / len(pred)
+        # lower_iqa = sum([p[1] for p in pred]) / len(pred)
+        # return [higher_iqa, lower_iqa]
 
-        return [higher_iqa, lower_iqa]
+        # The original paper sums ones (one of tested image has higher iqa, zero elsewhere)
+        return sum([int(p[0] > p[1]) for p in pred])

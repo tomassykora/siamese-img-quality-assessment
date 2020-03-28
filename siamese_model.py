@@ -13,11 +13,12 @@ from utils import get_preprocessed_patches
 
 class SiameseCNN:
 
-    def __init__(self, batch_size, data_generator, orig_arch=True):
+    def __init__(self, batch_size, data_generator, orig_arch=True, model_filename='model.h5'):
         self.batch_size = batch_size
         self.input_shape = (64, 64, 1)
         self.data_generator = data_generator
         self.orig_arch = orig_arch
+        self.model_filename = model_filename
 
         input = Input(shape=self.input_shape, name='image_input')
 
@@ -111,13 +112,8 @@ class SiameseCNN:
             epochs=2
         )
 
-        # serialize model to JSON
-        model_json = self.model.to_json()
-        with open('model.json', 'w') as json_file:
-            json_file.write(model_json)
-
         # serialize weights to HDF5
-        self.model.save('model.h5')
+        self.model.save(self.model_filename)
 
 
     def _l2_norm(self, x):

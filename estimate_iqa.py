@@ -1,11 +1,21 @@
+#!/usr/bin/env python3.6
+
 from keras.models import load_model
+
+from data_generator import DataGenerator
 from iqa_estimator import IQAEstimator
 
 
 def main():
-    estimator = IQAEstimator(load_model('model.h5'))
+    data_generator = DataGenerator(
+        dataset_path='/Users/tomassykora/Projects/school/siamese-img-quality-assessment/live2'
+    )
 
-    estimator.evaluate_image('tid2013/tid2013/distorted_images/i01_07_4.bmp')  # iqa value: 3.22222
+    estimator = IQAEstimator(
+        model=load_model('model.h5'),
+        test_images=data_generator.test_images
+    )
+    estimator.full_test_set_eval()
 
 
 if __name__ == '__main__':
