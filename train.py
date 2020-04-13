@@ -11,7 +11,7 @@ from iqa_estimator import IQAEstimator
 
 
 def main():
-    batch_size = 128
+    batch_size = 64
 
     data_generator = DataGenerator(
         batch_size=batch_size,
