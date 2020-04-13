@@ -2,8 +2,10 @@ import os
 from math import ceil
 import numpy as np
 
-from keras.layers import Flatten, Dense, Input, Concatenate
-from keras.layers import Lambda, Conv2D, MaxPooling2D, Dropout
+from keras.layers import Input
+from keras.layers.merge import Concatenate
+from keras.layers.core import Flatten, Dense, Lambda, Dropout
+from keras.layers.convolutional import Conv2D, MaxPooling2D
 from keras.models import Model, Sequential
 from keras import backend as K
 from keras.optimizers import Adam
@@ -24,23 +26,24 @@ class SiameseCNN:
 
         # CNN layers as described in the original paper
         cnn_model = Sequential()
-        cnn_model.add(self._cnn_layer())
-        cnn_model.add(self._cnn_layer())
-        cnn_model.add(self._max_pool_layer())
-        cnn_model.add(self._cnn_layer())
-        cnn_model.add(self._cnn_layer())
-        cnn_model.add(self._max_pool_layer())
-        cnn_model.add(self._cnn_layer())
-        cnn_model.add(self._cnn_layer())
-        cnn_model.add(self._cnn_layer())
-        cnn_model.add(self._max_pool_layer())
-        cnn_model.add(self._cnn_layer())
-        cnn_model.add(self._cnn_layer())
-        cnn_model.add(self._cnn_layer())
-        cnn_model.add(self._max_pool_layer())
-        cnn_model.add(self._cnn_layer())
-        cnn_model.add(self._cnn_layer())
-        cnn_model.add(self._cnn_layer())
+        cnn_model.add(self._cnn_layer(filters=16, input_shape=self.input_shape))
+        cnn_model.add(self._cnn_layer(filters=16))
+        cnn_model.add(self._max_pool_layer(strides=1))
+        cnn_model.add(self._cnn_layer(filters=32))
+        cnn_model.add(self._cnn_layer(filters=32))
+        cnn_model.add(self._max_pool_layer(strides=1))
+        cnn_model.add(self._cnn_layer(filters=48))
+        cnn_model.add(self._cnn_layer(filters=48))
+        cnn_model.add(self._cnn_layer(filters=48))
+        cnn_model.add(self._max_pool_layer(strides=2))
+        cnn_model.add(self._cnn_layer(filters=64))
+        cnn_model.add(self._cnn_layer(filters=64))
+        cnn_model.add(self._cnn_layer(filters=64))
+        cnn_model.add(self._max_pool_layer(strides=2))
+        cnn_model.add(self._cnn_layer(filters=80))
+        cnn_model.add(self._cnn_layer(filters=80))
+        cnn_model.add(self._cnn_layer(filters=80))
+        cnn_model.add(self._max_pool_layer(strides=2))
         cnn_model.add(Flatten(name='flatten'))
         
 
@@ -56,16 +59,11 @@ class SiameseCNN:
                 self.base_network(input_b)
             ])
 
-            # distance = Lambda(
-            #     self._euclidean_distance,
-            #     output_shape=self._eucl_dist_output_shape
-            # )([processed_a, processed_b])
-
             out = Dense(512, activation='relu', name='fc1')(out)
-            out = Dropout(0.5)(out)
+            # out = Dropout(0.5)(out)
             out = Dense(512, activation='relu', name='fc2')(out)
-            out = Dropout(0.5)(out)
-            out = Dense(2, activation='relu', name='fc3')(out)
+            # out = Dropout(0.5)(out)
+            out = Dense(2, name='fc3')(out)
             out = Dense(2, activation='softmax', name='fc4')(out)
 
             self.model = Model([input_a, input_b], out)
@@ -95,13 +93,8 @@ class SiameseCNN:
 
 
     def train(self, data_generator):
-        # self.model.compile(
-        #     optimizer=Adam(lr=0.0004),
-        #     loss=self._contrastive_loss, 
-        #     metrics=[self._accuracy]
-        # )
         self.model.compile(
-            optimizer=Adam(lr=0.0004),
+            optimizer=Adam(lr=0.00004),
             loss='categorical_crossentropy',
             metrics=['accuracy']
         )
@@ -146,9 +139,12 @@ class SiameseCNN:
         return K.mean(K.equal(y_true, K.cast(y_pred < 0.5, 'float32')))
 
 
-    def _cnn_layer(self):
-        return Conv2D(16, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu', input_shape=self.input_shape)
+    def _cnn_layer(self, filters, input_shape=None):
+        if input_shape:
+            return Conv2D(filters, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu', input_shape=input_shape)
+        else:
+            return Conv2D(filters, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu')
 
 
-    def _max_pool_layer(self):
-        return MaxPooling2D(pool_size=(2, 2), strides=(2, 2))
+    def _max_pool_layer(self, strides):
+        return MaxPooling2D(pool_size=(2, 2), strides=strides, padding='valid')

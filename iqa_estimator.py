@@ -21,10 +21,11 @@ class IQAEstimator:
         for test_img in self.test_images:
             test_img['estimated_iqa'] = 0
             for img_to_compare in self.test_images:
-                test_img['estimated_iqa'] += self._compare_image_patches(
-                    test_img['patches'],
-                    img_to_compare['patches']
-                )
+                if test_img != img_to_compare:
+                    test_img['estimated_iqa'] += self._compare_image_patches(
+                        test_img['patches'],
+                        img_to_compare['patches']
+                    )
         
         rho, p_val = spearmanr(
             [img['iqa'] for img in self.test_images],
